@@ -1,0 +1,6 @@
+# Because creating kernel namespaces and mounting file systems are privileged operations, you must execute your compiled binary with root permissions (sudo).
+# 1. Compile your custom container engine
+go build -o mydocker main.go
+
+# 2. Start a shell inside your container
+sudo ./mydocker run /bin/sh

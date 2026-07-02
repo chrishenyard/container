@@ -1,0 +1,10 @@
+# A container cannot share the host's root directory, or it could accidentally modify system files. You need a mini file system for your container to run inside.Run these commands on your Linux # host to fetch and unpack a minimal ⁠Alpine Linux distribution (which is only about 5MB):
+# Create a dedicated directory for your container's root filesystem
+
+mkdir -p ~/container_rootfs
+cd ~/container_rootfs
+
+# Download and extract the minimal Alpine filesystem
+curl -o alpine.tar.gz https://alpinelinux.org
+tar -xvf alpine-minirootfs-3.24.1-x86_64.tar.gz
+rm alpine-minirootfs-3.24.1-x86_64.tar.gz
