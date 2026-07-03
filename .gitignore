@@ -1,4 +1,6 @@
 container_rootfs
 .vscode/
 container
+rust/target/
+
 

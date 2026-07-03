@@ -9,50 +9,63 @@ import (
 )
 
 func main() {
-	if len(os.Args) < 4 {
-		fmt.Println("Usage: <go run container.go | container> --mode=<root|user> run <command>")
+	var (
+		mode   string
+		rootfs string
+	)
+
+	flag.StringVar(&mode, "mode", "root", "Mode of operation: root or user")
+	flag.StringVar(&rootfs, "rootfs", "", "Path to the container root filesystem")
+	flag.Parse()
+
+	if rootfs == "" {
+		fmt.Println("Missing required --rootfs argument")
 		os.Exit(1)
 	}
 
-	var mode string
-	flag.StringVar(&mode, "mode", "root", "Mode of operation: root or user")
-	flag.Parse()
+	args := flag.Args()
+
+	if len(args) < 2 {
+		fmt.Println("Usage: <go run container.go | container> --mode=<root|user> run <command>")
+		os.Exit(1)
+	}
 
 	if mode != "root" && mode != "user" {
 		fmt.Println("Invalid mode. Use 'root' or 'user'.")
 		os.Exit(1)
 	}
 
-	switch os.Args[2] {
+	switch args[0] {
 	case "run":
-		parent(mode)
+		parent(mode, rootfs, args[1:])
 	case "child":
-		child()
+		child(rootfs, args[1:])
 	default:
 		panic("Unknown command")
 	}
 }
 
 // First execution: Request new namespaces from the Linux Kernel
-func parent(mode string) {
+func parent(mode, rootfs string, commandArgs []string) {
 	uid := os.Getuid()
 
 	fmt.Printf("Current User ID (Integer): %d\n", uid)
 
-	// Example: Check if the program is running as root
 	if uid == 0 {
 		fmt.Println("Running with root privileges.")
 	}
 
 	fmt.Printf("Running parent process (PID %d)\n", os.Getpid())
 
-	// Re-execute this same binary, but call the 'child' case
-	// Get args
-	var args []string = []string{os.Args[1], "child"}
-	args = append(args, os.Args[3:]...)
+	// Re-execute this same binary, but call the 'child' case.
+	args := []string{
+		"--mode=" + mode,
+		"--rootfs=" + rootfs,
+		"child",
+	}
+	args = append(args, commandArgs...)
 
 	cmd := exec.Command("/proc/self/exe", args...)
-
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -62,16 +75,22 @@ func parent(mode string) {
 		cmd.SysProcAttr = &syscall.SysProcAttr{
 			Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS,
 		}
+
 	case "user":
 		cmd.SysProcAttr = &syscall.SysProcAttr{
-			Cloneflags: syscall.CLONE_NEWUTS | syscall.CLONE_NEWPID | syscall.CLONE_NEWNS | syscall.CLONE_NEWUSER,
+			Cloneflags: syscall.CLONE_NEWUTS |
+				syscall.CLONE_NEWPID |
+				syscall.CLONE_NEWNS |
+				syscall.CLONE_NEWUSER,
+
 			UidMappings: []syscall.SysProcIDMap{
 				{
-					ContainerID: 0,           // Becomes root (UID 0) inside container
-					HostID:      os.Getuid(), // Maps from your current host user ID
+					ContainerID: 0,
+					HostID:      os.Getuid(),
 					Size:        1,
 				},
 			},
+
 			GidMappings: []syscall.SysProcIDMap{
 				{
 					ContainerID: 0,
@@ -89,30 +108,30 @@ func parent(mode string) {
 }
 
 // Second execution: Runs inside the newly created namespaces
-func child() {
+func child(rootfs string, commandArgs []string) {
+	if len(commandArgs) == 0 {
+		fmt.Println("Missing command.")
+		os.Exit(1)
+	}
+
 	fmt.Printf("Running child process (PID %d inside container)\n", os.Getpid())
 
 	uid := os.Getuid()
 
 	fmt.Printf("Current User ID (Integer): %d\n", uid)
 
-	// Example: Check if the program is running as root
 	if uid == 0 {
 		fmt.Println("Running with root privileges.")
 	}
 
-	// 1. Isolate the Hostname
-	syscall.Sethostname([]byte("isolated-container"))
+	must(syscall.Sethostname([]byte("isolated-container")))
 
-	// 2. Chroot into our Alpine directory
-	must(syscall.Chroot("container_rootfs/")) // <-- CHANGE TO YOUR ACTUAL PATH
+	must(syscall.Chroot(rootfs))
 	must(os.Chdir("/"))
 
-	// 3. Mount the isolated /proc filesystem so 'ps' works correctly
 	must(syscall.Mount("proc", "proc", "proc", 0, ""))
 
-	// 4. Run the user's requested command
-	cmd := exec.Command(os.Args[3], os.Args[4:]...)
+	cmd := exec.Command(commandArgs[0], commandArgs[1:]...)
 	cmd.Stdin = os.Stdin
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -121,7 +140,6 @@ func child() {
 		fmt.Printf("Error running child: %v\n", err)
 	}
 
-	// Clean up the mount when the container exits
 	syscall.Unmount("/proc", 0)
 }
 
