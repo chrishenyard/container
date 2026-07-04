@@ -1,6 +1,6 @@
-# Linux Container Implementation in Go
+# Linux Container Implementation in Go and Rust
 
-A lightweight educational project that demonstrates how containerization works by implementing a basic Linux container runtime from scratch in Go. This project illustrates the core concepts behind Docker and other container technologies, including Linux namespaces, filesystem isolation, and process execution.
+A lightweight educational project that demonstrates how containerization works by implementing a basic Linux container runtime from scratch in Go and Rust. This project illustrates the core concepts behind Docker and other container technologies, including Linux namespaces, filesystem isolation, and process execution.
 
 ## Overview
 
@@ -38,11 +38,13 @@ The implementation follows a parent-child execution pattern:
 
 - Linux operating system (namespaces and chroot are Linux-specific features)
 - Go 1.22.2 or later
+- Rust 1.85.0 or later (Rust 2024 edition support)
 - Root privileges (for most namespace operations, particularly `CLONE_NEWPID` and `CLONE_NEWNS`)
 
 ## Project Structure
 
 - `container.go`: Main container implementation with parent and child process logic
+- `rust/`: Rust implementation (`container` crate, Rust 2024 edition)
 - `container_rootfs/`: Complete Alpine Linux root filesystem used as the container environment
 - `bash-container`: Build script or container configuration
 - `bash-test-container`: Test script for running containers
